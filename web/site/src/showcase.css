@@ -1,0 +1,596 @@
+/* Витрина naknigu.
+
+   Этот файл получают только современные браузеры (см. web/book/src/showcase.ts):
+   здесь можно всё, чего нет в браузере электронной книги, — oklch(), color-mix(),
+   :has(), контейнерные запросы и единицы cqi, text-wrap, анимации по прокрутке.
+   Пока на <html> стоит класс showcase, экран книги (#screen) скрыт; класс
+   nk-book — экран книги показан во весь экран поверх витрины. */
+
+/* --- Что показывать --- */
+
+/* Классы showcase и nk-book ставит showcase.ts: IDE их не видит. */
+/*noinspection CssUnusedSymbol*/
+html.showcase #screen { display: none; }
+/*noinspection CssUnusedSymbol*/
+html:not(.showcase) .nk { display: none; }
+/* Селектор сильнее, чем сброс стилей кнопок ниже (all: unset). */
+/*noinspection CssUnusedSymbol*/
+html:not(.nk-book) .nk-back { display: none; }
+/*noinspection CssUnusedSymbol*/
+html.nk-book .nk-back { display: inline-flex; }
+
+/* style.css книги запрещает прокрутку: книга листается экранами. */
+/*noinspection CssUnusedSymbol*/
+html.showcase, html.showcase body { overflow: visible; height: auto; }
+/*noinspection CssUnusedSymbol*/
+html.showcase { scroll-behavior: smooth; scroll-padding-top: 84px; }
+/*noinspection CssUnusedSymbol*/
+html.showcase body { margin: 0; background: var(--nk-paper); color: var(--nk-ink); }
+@media (prefers-reduced-motion: reduce) {
+  /*noinspection CssUnusedSymbol*/
+  html.showcase { scroll-behavior: auto; }
+}
+
+/* --- Цвета и шрифты --- */
+
+:root {
+  color-scheme: light dark;
+  --nk-paper: oklch(97.6% 0.007 85);
+  --nk-paper-2: oklch(94.6% 0.011 85);
+  --nk-card: oklch(99.3% 0.004 85);
+  --nk-ink: oklch(22% 0.012 60);
+  --nk-ink-2: oklch(40% 0.012 60);
+  --nk-ink-3: oklch(60% 0.01 60);
+  --nk-line: oklch(88% 0.012 80);
+  /* Акцент — пастельный фиолетовый; в светлой теме чуть темнее, чтобы
+     текст этого цвета читался на светлом фоне. */
+  --nk-accent: oklch(56% 0.11 300);
+  --nk-accent-2: oklch(50% 0.12 300);
+  --nk-on-accent: oklch(99% 0.005 300);
+  /* Экран e-ink остаётся светлым и в тёмной теме — как настоящий. */
+  --nk-screen: oklch(93.6% 0.006 95);
+  --nk-screen-ink: oklch(17% 0 0);
+  --nk-device: oklch(29% 0.006 60);
+  --nk-device-2: oklch(19% 0.005 60);
+  --nk-device-light: oklch(100% 0 0 / 0.14);
+  --nk-shadow: 0 1px 2px oklch(25% 0.02 60 / 0.05), 0 18px 40px -22px oklch(25% 0.02 60 / 0.28);
+  --nk-radius: 20px;
+  --nk-gutter: clamp(16px, 4vw, 40px);
+  --nk-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", "URW Palladio L", P052, Georgia, serif;
+  --nk-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --nk-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --nk-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --nk-paper: oklch(18.5% 0.008 60);
+    --nk-paper-2: oklch(22% 0.01 60);
+    --nk-card: oklch(22.5% 0.01 60);
+    --nk-ink: oklch(94% 0.008 85);
+    --nk-ink-2: oklch(79% 0.01 80);
+    --nk-ink-3: oklch(60% 0.01 80);
+    --nk-line: oklch(31% 0.01 60);
+    --nk-accent: oklch(80% 0.085 300);
+    --nk-accent-2: oklch(85% 0.07 300);
+    --nk-on-accent: oklch(22% 0.04 300);
+    /* На тёмном фоне корпус книги светлый: так она заметна. */
+    --nk-device: oklch(93% 0.004 85);
+    --nk-device-2: oklch(83% 0.005 85);
+    --nk-device-light: oklch(0% 0 0 / 0.16);
+    --nk-shadow: 0 1px 2px oklch(0% 0 0 / 0.3), 0 18px 40px -22px oklch(0% 0 0 / 0.7);
+  }
+}
+
+/* --- Основа --- */
+
+.nk {
+  position: relative;
+  font-family: var(--nk-sans), sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--nk-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* Бумажное зерно на всей странице. */
+.nk::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--nk-grain);
+}
+.nk > * { position: relative; z-index: 1; }
+.nk *, .nk *::before, .nk *::after, .nk-back, .nk-back * { box-sizing: border-box; }
+
+/* Кнопки книги (style.css) — с рамкой и без скруглений; здесь свои. */
+.nk button, .nk-back {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.nk :focus-visible, .nk-back:focus-visible {
+  outline: 3px solid var(--nk-accent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+:where(.nk) a { color: inherit; }
+:where(.nk) :is(h1, h2, h3) {
+  margin: 0;
+  font-family: var(--nk-serif), serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+/* Сброс без веса (:where): отступы, заданные классами ниже, его перекрывают. */
+:where(.nk) p { margin: 0; text-wrap: pretty; }
+:where(.nk) :is(ul, ol) { margin: 0; padding: 0; list-style: none; }
+
+.nk-wrap { width: min(1180px, 100% - 2 * var(--nk-gutter)); margin-inline: auto; }
+
+.nk-skip {
+  position: absolute;
+  left: 12px;
+  top: -120px;
+  z-index: 40;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--nk-ink);
+  color: var(--nk-paper) !important;
+  font-weight: 600;
+  text-decoration: none;
+}
+.nk-skip:focus { top: 12px; }
+#nk-main:focus { outline: none; }
+
+/* --- Шапка --- */
+
+.nk-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in oklch, var(--nk-paper) 84%, transparent);
+  backdrop-filter: saturate(1.3) blur(14px);
+  -webkit-backdrop-filter: saturate(1.3) blur(14px);
+  border-bottom: 1px solid transparent;
+}
+@supports (animation-timeline: scroll()) {
+  .nk-top {
+    animation: nk-top-line linear both;
+    animation-timeline: scroll();
+    animation-range: 0 140px;
+  }
+  @keyframes nk-top-line { to { border-bottom-color: var(--nk-line); } }
+}
+.nk-top-row { display: flex; align-items: center; gap: 20px; height: 68px; }
+
+.nk-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--nk-serif), serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+.nk-logo { width: 30px; height: 30px; flex: none; }
+
+.nk-nav { display: flex; gap: 4px; margin-left: auto; }
+.nk-nav a {
+  padding: 8px 13px;
+  border-radius: 999px;
+  color: var(--nk-ink-2);
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+.nk-nav a:hover { background: var(--nk-paper-2); color: var(--nk-ink); }
+
+.nk-lang {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--nk-line);
+  border-radius: 999px;
+  background: var(--nk-card);
+}
+.nk .nk-lang button {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--nk-ink-2);
+  transition: background-color 0.15s, color 0.15s;
+}
+.nk .nk-lang button[aria-pressed="true"] { background: var(--nk-ink); color: var(--nk-paper); }
+
+@media (max-width: 760px) {
+  .nk-nav { display: none; }
+  .nk-lang { margin-left: auto; }
+}
+
+/* --- Первый экран --- */
+
+.nk-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  padding-block: clamp(28px, 6vw, 84px) clamp(56px, 8vw, 112px);
+}
+@media (max-width: 920px) {
+  .nk-hero { grid-template-columns: minmax(0, 1fr); }
+}
+
+.nk-hero h1 {
+  margin: 0 0 20px;
+  font-size: clamp(1.9rem, 1.4rem + 1.6vw, 2.75rem);
+  line-height: 1.12;
+}
+.nk-lead { max-width: 36em; color: var(--nk-ink-2); font-size: clamp(1.05rem, 1rem + 0.3vw, 1.22rem); }
+
+.nk-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.nk .nk-btn, .nk a.nk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: transform 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.nk-btn svg { width: 20px; height: 20px; flex: none; }
+.nk .nk-btn-primary {
+  background: var(--nk-accent);
+  color: var(--nk-on-accent);
+  box-shadow: 0 12px 26px -14px color-mix(in oklch, var(--nk-accent) 75%, black);
+}
+.nk .nk-btn-primary:hover { background: var(--nk-accent-2); transform: translateY(-1px); }
+.nk .nk-btn-ghost { border: 1px solid var(--nk-line); background: var(--nk-card); }
+.nk .nk-btn-ghost:hover { border-color: var(--nk-ink-3); }
+
+.nk-facts { display: grid; gap: 10px; margin-top: 34px; color: var(--nk-ink-2); font-size: 0.97rem; }
+.nk-facts li { display: flex; gap: 12px; align-items: baseline; }
+.nk-facts li::before { content: "✓"; flex: none; color: var(--nk-accent); font-weight: 800; }
+
+/* Сцена: нарисованная книга с настоящим кодом и телефон, который его сканирует. */
+.nk-stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  margin: 0;
+}
+/* Книга и телефон: телефон стоит у правого нижнего угла книги и выходит
+   за неё, поэтому справа и снизу оставлено место. */
+.nk-devices {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  padding: 2% 13% 10% 0;
+  container-type: inline-size;
+}
+.nk-glow {
+  position: absolute;
+  inset: 4% 4% 14% 0;
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklch, var(--nk-accent) 24%, transparent), transparent);
+  filter: blur(28px);
+}
+.nk-caption {
+  max-width: 34em;
+  margin-top: 22px;
+  color: var(--nk-ink-2);
+  font-size: 0.92rem;
+  text-align: center;
+}
+.nk-stage .nk-caption { position: relative; z-index: 1; margin-top: 8px; padding-right: 13%; }
+
+/* Книга — контейнер: всё внутри неё, включая ширину рамки вокруг экрана,
+   задано в долях её ширины (cqi), и рисунок одинаков при любом размере. */
+.nk-ereader {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 470px);
+  aspect-ratio: 0.74;
+  border-radius: 6.8% / 5%;
+  background: linear-gradient(155deg, var(--nk-device), var(--nk-device-2));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.09),
+    inset 0 0 0 1px oklch(100% 0 0 / 0.04),
+    0 2px 4px oklch(0% 0 0 / 0.12),
+    0 44px 80px -36px oklch(0% 0 0 / 0.55);
+  container-type: inline-size;
+  rotate: -2deg;
+}
+.nk-ereader-screen {
+  position: absolute;
+  inset: 7cqi 6.5cqi 15cqi;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6cqi 7cqi;
+  overflow: hidden;
+  border-radius: 1.6cqi;
+  background: var(--nk-screen);
+  color: var(--nk-screen-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px oklch(0% 0 0 / 0.22), inset 0 3px 9px oklch(0% 0 0 / 0.16);
+}
+.nk-ereader-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--nk-grain), linear-gradient(125deg, oklch(100% 0 0 / 0.35), transparent 40%);
+  mix-blend-mode: multiply;
+}
+.nk-ereader-title { margin-bottom: 2.5cqi; font-size: 7.2cqi; font-weight: 700; line-height: 1.2; }
+.nk-ereader-text { margin-bottom: 4cqi; font-size: 4.3cqi; }
+.nk-ereader-url {
+  max-width: 100%;
+  margin-top: 4cqi;
+  font-family: var(--nk-mono), monospace;
+  font-size: 2.5cqi;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+.nk-ereader-status { margin-top: 2cqi; font-size: 3.3cqi; font-weight: 700; }
+.nk-ereader-status:empty { display: none; }
+.nk-ereader-light {
+  position: absolute;
+  left: 50%;
+  bottom: 6.5cqi;
+  width: 2.2cqi;
+  height: 2.2cqi;
+  border-radius: 50%;
+  background: var(--nk-device-light);
+  translate: -50% 0;
+}
+
+.nk .nk-qr {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 56cqi;
+  aspect-ratio: 1;
+  border-radius: 1cqi;
+  transition: transform 0.2s;
+}
+.nk .nk-qr:hover { transform: scale(1.025); }
+.nk-qr-code, .nk-qr-code svg { display: block; width: 100%; height: 100%; }
+.nk-qr svg rect, .nk-cam-qr svg rect { fill: var(--nk-screen); }
+.nk-qr svg path, .nk-cam-qr svg path { fill: var(--nk-screen-ink); }
+/* Пока код рисуется, на его месте — мягкая заглушка. */
+.nk-qr-code:not(:has(svg)) {
+  border-radius: 1cqi;
+  background: repeating-conic-gradient(oklch(17% 0 0 / 0.08) 0 25%, transparent 0 50%) 0 0 / 12% 12%;
+}
+.nk-qr-expand {
+  position: absolute;
+  right: -3cqi;
+  bottom: -3cqi;
+  display: grid;
+  place-items: center;
+  width: 11cqi;
+  height: 11cqi;
+  border-radius: 50%;
+  background: var(--nk-screen-ink);
+  color: var(--nk-screen);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.nk-qr-expand svg { width: 55%; height: 55%; }
+.nk-qr:hover .nk-qr-expand, .nk-qr:focus-visible .nk-qr-expand { opacity: 1; transform: none; }
+@media (hover: none) { .nk-qr-expand { opacity: 1; transform: none; } }
+.nk-qr:not(:has(svg)) .nk-qr-expand { display: none; }
+
+/* Телефон. Размеры внутри — в долях его ширины (cqi). */
+.nk-phone { width: 30cqi; }
+.nk-devices .nk-phone {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 0;
+  rotate: 8deg;
+  animation: nk-float 7s ease-in-out infinite;
+}
+.nk-phone-body {
+  position: relative;
+  aspect-ratio: 9 / 19;
+  padding: 4.5%;
+  border-radius: 15% / 7.1%;
+  background: oklch(13% 0.003 60);
+  box-shadow: inset 0 0 0 1px oklch(42% 0.004 60), inset 0 0 0 4px oklch(20% 0.003 60), 0 34px 60px -26px oklch(0% 0 0 / 0.65);
+  container-type: inline-size;
+}
+.nk-phone-island {
+  position: absolute;
+  top: 4.4%;
+  left: 50%;
+  z-index: 3;
+  width: 30%;
+  height: 3.3%;
+  border-radius: 99px;
+  background: #000;
+  translate: -50% 0;
+}
+.nk-phone-screen {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 11% / 5.3%;
+  background: #121212;
+}
+
+.nk-cam {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(120% 80% at 50% 46%, #45433f, #121212);
+}
+.nk-cam-paper {
+  display: grid;
+  place-items: center;
+  width: 76%;
+  aspect-ratio: 0.78;
+  border-radius: 3px;
+  background: var(--nk-screen);
+  box-shadow: 0 12px 30px oklch(0% 0 0 / 0.5);
+  transform: perspective(320px) rotateX(9deg) rotateZ(-5deg);
+}
+.nk-cam-qr { display: block; width: 72%; aspect-ratio: 1; }
+.nk-cam-qr svg { display: block; width: 100%; height: 100%; }
+.nk-frame {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  width: 66%;
+  aspect-ratio: 1;
+  color: #fff;
+  translate: -50% -50%;
+  animation: nk-lock 9s infinite;
+}
+.nk-corner { position: absolute; width: 22%; aspect-ratio: 1; border: 1.6cqi solid currentColor; }
+.nk-c1 { top: 0; left: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 22%; }
+.nk-c2 { top: 0; right: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 22%; }
+.nk-c3 { bottom: 0; left: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 22%; }
+.nk-c4 { bottom: 0; right: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 22%; }
+.nk-scanline {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  top: 34%;
+  height: 0.9cqi;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, oklch(86% 0.16 150), transparent);
+  box-shadow: 0 0 4cqi oklch(80% 0.16 150);
+  animation: nk-scan 2.2s ease-in-out infinite alternate;
+}
+@keyframes nk-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -2.5%; } }
+@keyframes nk-scan { from { top: 30%; } to { top: 61%; } }
+@keyframes nk-lock {
+  0%, 30% { scale: 1.12; color: #fff; }
+  40%, 52% { scale: 0.9; color: oklch(84% 0.17 150); }
+  58%, 100% { scale: 1.12; color: #fff; }
+}
+
+@media (max-width: 920px) {
+  .nk-stage { width: min(100%, 560px); justify-self: center; }
+  .nk-devices .nk-phone { width: 32cqi; }
+}
+
+/* --- Разделы --- */
+
+.nk-section { padding-block: clamp(56px, 8vw, 112px); border-top: 1px solid var(--nk-line); }
+.nk-section-head { max-width: 760px; margin-bottom: clamp(28px, 4vw, 48px); }
+.nk-kicker {
+  margin-bottom: 12px;
+  color: var(--nk-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.nk-section h2 { font-size: clamp(1.9rem, 1.3rem + 2vw, 3rem); line-height: 1.1; }
+.nk-section-lead { margin-top: 16px; color: var(--nk-ink-2); font-size: 1.15rem; }
+
+.nk-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 20px; }
+.nk-step {
+  padding: 28px 26px 30px;
+  border: 1px solid var(--nk-line);
+  border-radius: var(--nk-radius);
+  background: var(--nk-card);
+  box-shadow: var(--nk-shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.nk-step:has(h3:hover) { transform: translateY(-2px); }
+.nk-step-no {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--nk-accent);
+  font-family: var(--nk-serif), serif;
+  font-size: 3.2rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.nk-step h3 { margin-bottom: 8px; font-size: 1.35rem; }
+.nk-step p { color: var(--nk-ink-2); }
+
+.nk-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--nk-line);
+  border-radius: var(--nk-radius);
+  background: var(--nk-line);
+}
+.nk-features li { padding: 30px 28px 32px; background: var(--nk-card); }
+.nk-features svg {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 18px;
+  fill: none;
+  stroke: var(--nk-accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nk-features h3 { margin-bottom: 8px; font-size: 1.25rem; }
+.nk-features p { color: var(--nk-ink-2); font-size: 0.98rem; }
+
+.nk-privacy-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 20px; }
+.nk-privacy-list li {
+  padding: 22px 24px;
+  border-left: 3px solid var(--nk-accent);
+  border-radius: 0 14px 14px 0;
+  background: var(--nk-card);
+  color: var(--nk-ink-2);
+}
+
+.nk-foot { padding-block: 32px 44px; border-top: 1px solid var(--nk-line); color: var(--nk-ink-2); font-size: 0.95rem; }
+.nk-foot-row { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+.nk-foot a { margin-left: auto; color: var(--nk-ink); text-underline-offset: 4px; }
+.nk-brand-small { color: var(--nk-ink); font-size: 1.1rem; }
+
+/* --- Кнопка «Вернуться» поверх экрана книги --- */
+
+.nk-back {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 30;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 10px 12px;
+  border: 2px solid #000;
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  font: 600 15px/1.2 var(--nk-sans);
+  box-shadow: 0 6px 20px oklch(0% 0 0 / 0.18);
+}
+.nk-back svg { width: 18px; height: 18px; }
+
+/* --- Доступность --- */
+
+@media (prefers-reduced-motion: reduce) {
+  .nk *, .nk *::before, .nk *::after { animation: none !important; transition: none !important; }
+  .nk-frame { scale: 0.92; color: oklch(84% 0.17 150); }
+}
+@media (forced-colors: active) {
+  .nk-btn, .nk-step, .nk-features li, .nk-lang, .nk-privacy-list li, .nk-back { border: 1px solid CanvasText; }
+  .nk::before { display: none; }
+}

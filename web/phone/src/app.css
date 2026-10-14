@@ -1,0 +1,62 @@
+/* Общие правила приложения телефона: Tailwind, цвета и основа страницы.
+   Оформление компонентов — классами Tailwind в самих компонентах. */
+
+@import "tailwindcss";
+
+/* Цвета по смыслу: компоненты пишут bg-page, text-ink-2 и т. п., а тёмная
+   тема ниже лишь меняет значения переменных — без dark: в каждом классе.
+   Палитра строгая, только чёрный, белый и серые: акцент — чёрный (в тёмной
+   теме белый), «готово» и «ошибка» тоже не цветные — их выделяет начертание.
+   @theme — директива Tailwind, встроенный разбор CSS в IDE её не знает. */
+/*noinspection CssInvalidAtRule*/
+@theme {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-page: oklch(97% 0 0);
+  --color-card: oklch(100% 0 0);
+  --color-ink: oklch(15% 0 0);
+  --color-ink-2: oklch(45% 0 0);
+  --color-line: oklch(88% 0 0);
+  --color-accent: oklch(15% 0 0);
+  --color-accent-2: oklch(30% 0 0);
+  --color-on-accent: oklch(100% 0 0);
+  --color-ok: oklch(15% 0 0);
+  --color-danger: oklch(15% 0 0);
+}
+
+@layer base {
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-page: oklch(13% 0 0);
+      --color-card: oklch(19% 0 0);
+      --color-ink: oklch(96% 0 0);
+      --color-ink-2: oklch(72% 0 0);
+      --color-line: oklch(30% 0 0);
+      --color-accent: oklch(96% 0 0);
+      --color-accent-2: oklch(85% 0 0);
+      --color-on-accent: oklch(13% 0 0);
+      --color-ok: oklch(96% 0 0);
+      --color-danger: oklch(96% 0 0);
+    }
+  }
+
+  html {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans), sans-serif;
+    font-size: 17px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}

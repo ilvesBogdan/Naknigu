@@ -1,0 +1,210 @@
+openapi: 3.1.0
+info:
+  title: naknigu API
+  version: 1.0.0
+  description: >-
+    Все ошибки приходят в виде JSON `{"error": "<код>"}`.
+servers:
+  - url: /
+
+paths:
+  /api/health:
+    get:
+      summary: Проверка, что сервер работает
+      responses:
+        "200":
+          description: Сервер работает
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /api/fetch:
+    get:
+      summary: Скачать страницу чужого сайта
+      description: >-
+        Страница отдаётся, а кодировку определяет и переводит клиент.
+        Скачивать можно только с публичных адресов.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, format: uri }
+      responses:
+        "200":
+          description: Страница
+          headers:
+            X-Final-Url:
+              description: Адрес страницы после перенаправлений.
+              schema: { type: string }
+          content:
+            text/html: {}
+        "400": { $ref: "#/components/responses/Error" }   # bad_url
+        "403": { $ref: "#/components/responses/Error" }   # private_address
+        "415": { $ref: "#/components/responses/Error" }   # not_html
+        "429": { $ref: "#/components/responses/Error" }   # too_many_requests
+        "502": { $ref: "#/components/responses/Error" }   # host_not_found, too_large, unreachable, site_status
+        "504": { $ref: "#/components/responses/Error" }   # timeout
+
+  /api/sessions/{session}/book:
+    post:
+      summary: Отправить сообщение книге
+      description: >-
+        Пишет телефон: статью, ход её загрузки, ошибку. Канал помнит одно
+        последнее сообщение; публикация будит всех, кто его ждёт.
+      parameters:
+        - $ref: "#/components/parameters/session"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Любой объект JSON размером до 4 МБ.
+      responses:
+        "200": { $ref: "#/components/responses/Published" }
+        "400": { $ref: "#/components/responses/Error" }   # bad_json
+        "404": { $ref: "#/components/responses/Error" }   # not_found: неверная сессия
+        "413": { $ref: "#/components/responses/Error" }   # too_large
+        "415": { $ref: "#/components/responses/Error" }   # not_json
+        "429": { $ref: "#/components/responses/Error" }   # too_many_requests
+
+  /api/sessions/{session}/phone:
+    post:
+      summary: Отправить сообщение телефону
+      description: >-
+        Пишет книга: прогресс чтения, уведомление открыть ссылку, выход.
+        Писать можно только в сессию, в которую телефон уже отправил хотя бы
+        одно сообщение.
+      parameters:
+        - $ref: "#/components/parameters/session"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Любой объект JSON размером до 64 КБ.
+      responses:
+        "200": { $ref: "#/components/responses/Published" }
+        "400": { $ref: "#/components/responses/Error" }   # bad_json
+        "403": { $ref: "#/components/responses/Error" }   # not_paired
+        "404": { $ref: "#/components/responses/Error" }   # not_found
+        "413": { $ref: "#/components/responses/Error" }   # too_large
+        "415": { $ref: "#/components/responses/Error" }   # not_json
+        "429": { $ref: "#/components/responses/Error" }   # too_many_requests
+
+  /api/sessions/{session}/book/next:
+    get:
+      summary: Получить сообщение для книги новее указанной версии
+      description: >-
+        Long polling: если нового сообщения нет, запрос ждёт его до 25 секунд.
+      parameters:
+        - $ref: "#/components/parameters/session"
+        - $ref: "#/components/parameters/after"
+        - $ref: "#/components/parameters/wait"
+      responses:
+        "200": { $ref: "#/components/responses/Next" }
+        "204":
+          description: Нового сообщения нет, можно спросить снова
+        "404": { $ref: "#/components/responses/Error" }   # not_found
+        "429": { $ref: "#/components/responses/Error" }   # too_many_requests: слишком много ожиданий
+
+  /api/sessions/{session}/phone/next:
+    get:
+      summary: Получить сообщение для телефона новее указанной версии
+      description: >-
+        Long polling: если нового сообщения нет, запрос ждёт его до 25 секунд.
+      parameters:
+        - $ref: "#/components/parameters/session"
+        - $ref: "#/components/parameters/after"
+        - $ref: "#/components/parameters/wait"
+      responses:
+        "200": { $ref: "#/components/responses/Next" }
+        "204":
+          description: Нового сообщения нет, можно спросить снова
+        "404": { $ref: "#/components/responses/Error" }   # not_found
+        "429": { $ref: "#/components/responses/Error" }   # too_many_requests
+
+components:
+  parameters:
+    session:
+      name: session
+      in: path
+      required: true
+      description: Идентификатор сессии, который книга показывает в QR-коде.
+      schema: { type: string, pattern: "^[a-z0-9]{32,64}$" }
+    after:
+      name: after
+      in: query
+      description: Последняя версия, которую клиент уже видел. По умолчанию 0.
+      schema: { type: string }
+    wait:
+      name: wait
+      in: query
+      description: Значение 0 отключает ожидание — ответ приходит сразу.
+      schema: { type: string, enum: ["0"] }
+
+  schemas:
+    Health:
+      type: object
+      properties:
+        status: { type: string, const: ok }
+        version:
+          type: string
+          description: Версия сборки, например 1.2.3 или dev.
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: "#/components/schemas/ErrorCode" }
+        status:
+          type: integer
+          description: Код ответа чужого сайта; только для site_status.
+    ErrorCode:
+      type: string
+      description: Код ошибки. Клиенты показывают его через словари errors.*.
+      enum:
+        - bad_json
+        - bad_url
+        - host_not_found
+        - internal
+        - method_not_allowed
+        - not_found
+        - not_html
+        - not_json
+        - not_paired
+        - private_address
+        - site_status
+        - timeout
+        - too_large
+        - too_many_requests
+        - unreachable
+
+  responses:
+    Error:
+      description: Ошибка
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+    Published:
+      description: Сообщение сохранено
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              version:
+                type: string
+                description: Версия сообщения — наносекунды в виде строки.
+              listeners:
+                type: integer
+                description: Сколько клиентов ждали сообщение в этот момент.
+    Next:
+      description: Новое сообщение
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              version: { type: string }
+              message: { type: object }

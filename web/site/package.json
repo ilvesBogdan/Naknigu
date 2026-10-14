@@ -1,0 +1,17 @@
+{
+  "name": "site",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "sh build.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.25.0",
+    "typescript": "^7.0.0",
+    "vitest": "^5.0.0"
+  }
+}

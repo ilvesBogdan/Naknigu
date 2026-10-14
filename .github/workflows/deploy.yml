@@ -1,0 +1,149 @@
+# Выкатка версии: сервер — в Coolify, сайт с клиентами — на GitHub Pages.
+#
+# Запускается двумя способами:
+#   - из release.yml после публикации образа (метка v1.2.3 на master);
+#   - вручную (Actions → deploy → Run workflow) с номером уже выпущенной
+#     версии — так делается откат: укажите прежнюю версию, например 1.2.2.
+#
+# Как Coolify узнаёт о новой версии. В Coolify приложение настроено на образ
+# ghcr.io/<владелец>/naknigu с меткой stable. Эта выкатка переставляет stable
+# на нужную версию и дёргает deploy webhook Coolify: тот скачивает образ
+# заново и перезапускает контейнер. Токену Coolify хватает права deploy.
+#
+# Что нужно настроить:
+#   переменная репозитория NAKNIGU_API_URL — адрес сервера API;
+#   окружение production с секретами COOLIFY_WEBHOOK и COOLIFY_TOKEN;
+#   Settings → Pages → Source: GitHub Actions, и в окружении github-pages
+#   разрешение выкатывать с меток v*.
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Версия без «v», например 1.2.3
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Версия без «v», например 1.2.3. Для отката — прежняя версия.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Две выкатки одновременно не идут: вторая ждёт первую.
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  server:
+    name: server (Coolify)
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ inputs.version }}
+      API_URL: ${{ vars.NAKNIGU_API_URL }}
+      COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+    steps:
+      - name: Check the settings
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::The version looks like 1.2.3, got '$VERSION'"
+            exit 1
+          fi
+          if ! printf '%s' "$API_URL" | grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?$'; then
+            echo "::error::Set the repository variable NAKNIGU_API_URL, for example https://naknigu.203-0-113-10.sslip.io"
+            exit 1
+          fi
+          if [ -z "$COOLIFY_WEBHOOK" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "::error::Set the secrets COOLIFY_WEBHOOK and COOLIFY_TOKEN in the production environment"
+            exit 1
+          fi
+          echo "REPO=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Метка stable — то, что запускает Coolify. Если такой версии нет
+      # в реестре, шаг упадёт, и ничего не поменяется.
+      - name: Point stable at ${{ inputs.version }}
+        run: |
+          docker buildx imagetools create --tag "$REPO:stable" "$REPO:$VERSION"
+          docker buildx imagetools inspect "$REPO:stable"
+
+      - name: Ask Coolify to deploy
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$COOLIFY_WEBHOOK"
+          echo
+
+      # Coolify отвечает сразу, а выкатка идёт в фоне. Ждём, пока сервер
+      # сам назовёт новую версию: так видно, что выкатилось именно оно.
+      - name: Wait until the server runs ${{ inputs.version }}
+        run: |
+          for attempt in $(seq 1 60); do
+            got=$(curl --silent --max-time 10 "$API_URL/api/health" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' || true)
+            if [ "$got" = "$VERSION" ]; then
+              echo "The server runs $VERSION"
+              exit 0
+            fi
+            echo "attempt $attempt: the server runs '${got:-nothing}', waiting for $VERSION"
+            sleep 5
+          done
+          echo "::error::The server did not start version $VERSION in 5 minutes; look at the deployment logs in Coolify"
+          exit 1
+
+  pages:
+    name: site (GitHub Pages)
+    needs: server
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Сайт собирается из той же метки, что и сервер: клиенты и API
+      # всегда одной версии, в том числе при откате.
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ inputs.version }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Build the site
+        working-directory: web
+        env:
+          NAKNIGU_API_URL: ${{ vars.NAKNIGU_API_URL }}
+        run: |
+          corepack enable
+          yarn install --immutable
+          yarn build
+          yarn pages
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v5

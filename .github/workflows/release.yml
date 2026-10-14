@@ -1,0 +1,229 @@
+# Проверки, сборка образов сервера и выпуск.
+#
+# При пуше в любую ветку и в каждом pull request:
+#   test     — все тесты сервера и клиентов;
+#   contract — отдельно: сверка api/openapi.yaml с сервером и клиентами;
+#   image    — два образа сервера, под amd64 и arm64; готовый образ
+#              запускается и проверяется.
+# При метке вида v1.2.3 на коммите из master вдобавок:
+#   release  — выпуск на GitHub с обоими образами в виде файлов;
+#   publish  — те же, уже проверенные образы уходят в GitHub Container
+#              Registry: ghcr.io/<владелец>/naknigu:1.2.3 (оба образа под
+#              одной меткой);
+#   deploy   — выкатка этой версии: сервер в Coolify, сайт на GitHub Pages
+#              (.github/workflows/deploy.yml).
+#
+# Локально эту сборку можно прогнать через act (https://github.com/nektos/act).
+name: release
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Для проверки, что метка стоит на коммите из master.
+          fetch-depth: 0
+
+      - name: The version tag is on master
+        if: github.ref_type == 'tag'
+        run: |
+          if ! printf '%s' "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::A version tag looks like v1.2.3, got $GITHUB_REF_NAME"
+            exit 1
+          fi
+          git fetch --no-tags origin master
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::The tag $GITHUB_REF_NAME is not on master: releases are made only from master"
+            exit 1
+          fi
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Go — vet and tests
+        run: |
+          go vet ./...
+          go test -race ./...
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Clients — types, tests, build
+        working-directory: web
+        run: |
+          corepack enable
+          yarn install --immutable
+          yarn check
+          yarn test
+          yarn build
+
+  # Сверка описания API с кодом. Она входит и в test, а отдельное задание
+  # нужно, чтобы расхождение сразу было видно в списке проверок.
+  contract:
+    name: contract (api/openapi.yaml)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Server routes and error codes match api/openapi.yaml
+        run: go test -run 'OpenAPI' -v ./internal/app/naknigu/
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Clients call only what api/openapi.yaml describes
+        working-directory: web
+        run: |
+          corepack enable
+          yarn install --immutable
+          yarn workspace phone vitest run contract
+
+  image:
+    name: image (${{ matrix.arch }})
+    needs: [test, contract]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+      FILE: naknigu-linux-${{ matrix.arch }}.tar.gz
+    steps:
+      - uses: actions/checkout@v7
+
+      # Сборка эмуляции не требует (сервер собирается под целевую архитектуру
+      # на машине сборки); эмуляция нужна только проверочному запуску arm64.
+      - uses: docker/setup-qemu-action@v4
+
+      - name: Build the image (tests run inside the build)
+        run: |
+          VERSION=${VERSION#v}
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "IMAGE=naknigu:$VERSION" >> "$GITHUB_ENV"
+          docker build \
+            --platform linux/${{ matrix.arch }} \
+            --build-arg VERSION="$VERSION" \
+            --file build/package/Dockerfile \
+            --tag "naknigu:$VERSION" \
+            .
+
+      - name: Check that the image works
+        run: build/ci/smoke-test.sh "$IMAGE" linux/${{ matrix.arch }} "$VERSION"
+
+      - name: Save the image to a file
+        run: docker save "$IMAGE" | gzip -9 > "$FILE"
+
+      # При локальном прогоне через act этот шаг пропускается: act пока
+      # не понимает эту версию действия, а файл образа и так остаётся на диске.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !env.ACT }}
+        with:
+          name: ${{ env.FILE }}
+          path: ${{ env.FILE }}
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: release
+    needs: image
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+
+      # В выпуск попадают ровно два файла: образы под amd64 и arm64.
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            naknigu-linux-amd64.tar.gz
+            naknigu-linux-arm64.tar.gz
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+
+  # Публикуются ровно те образы, что прошли проверку в задании image:
+  # они не пересобираются, а загружаются из файлов.
+  publish:
+    name: publish (ghcr.io)
+    needs: image
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.names.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+
+      - name: Image names
+        id: names
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          # Имена в реестре — только строчными буквами.
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "REPO=$repo" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Push both images under one tag
+        run: |
+          for arch in amd64 arm64; do
+            docker load < "naknigu-linux-$arch.tar.gz"
+            docker tag "naknigu:$VERSION" "$REPO:$VERSION-$arch"
+            docker push "$REPO:$VERSION-$arch"
+            docker rmi "naknigu:$VERSION"
+          done
+          # Одна метка на оба образа: Docker сам возьмёт образ под свою архитектуру.
+          docker buildx imagetools create --tag "$REPO:$VERSION" \
+            "$REPO:$VERSION-amd64" "$REPO:$VERSION-arm64"
+          docker buildx imagetools inspect "$REPO:$VERSION"
+
+  deploy:
+    name: deploy
+    needs: [publish, release]
+    if: github.ref_type == 'tag'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      version: ${{ needs.publish.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+      pages: write
+      id-token: write
+    secrets: inherit

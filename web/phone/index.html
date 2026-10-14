@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Исполняться могут только собственные скрипты сайта. GitHub Pages
+     не даёт задать заголовки ответа, поэтому политика задана здесь.
+     base-uri не ограничен: политика достаётся и документам, которые
+     создаёт DOMParser, а разбору статьи (src/lib/loader.ts) нужен <base>
+     с адресом страницы, иначе относительные ссылки и картинки потеряются. -->
+<meta http-equiv="Content-Security-Policy" content="script-src 'self'; object-src 'none'; frame-src 'none'">
+<meta name="theme-color" content="#ffffff">
+<!-- Адреса относительные: сайт проекта на GitHub Pages живёт не в корне.
+     Файлы лежат в public/: Vite кладёт их рядом со страницей. -->
+<!--suppress HtmlUnknownTarget -->
+<link rel="manifest" href="manifest.json">
+<!--suppress HtmlUnknownTarget -->
+<link rel="icon" href="icon-192.png">
+<!--suppress HtmlUnknownTarget -->
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>naknigu</title>
+</head>
+<body>
+<div id="app"></div>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

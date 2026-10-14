@@ -1,0 +1,30 @@
+{
+  "name": "phone",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "check": "svelte-check --tsgo --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "build": "vite build && html-minifier-terser --collapse-whitespace --remove-comments -o dist/index.html dist/index.html"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@tsconfig/svelte": "^5.0.0",
+    "@types/node": "^26.6.5",
+    "@typescript/native": "npm:typescript@^7.0.0",
+    "html-minifier-terser": "^7.0.0",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "~6.0.0",
+    "vite": "^8.0.0",
+    "vitest": "^5.0.0",
+    "yaml": "^2.9.1"
+  }
+}

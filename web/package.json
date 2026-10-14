@@ -1,0 +1,18 @@
+{
+  "name": "naknigu-web",
+  "private": true,
+  "type": "module",
+  "packageManager": "yarn@4.18.0",
+  "workspaces": [
+    "book",
+    "phone",
+    "site"
+  ],
+  "scripts": {
+    "check": "yarn workspaces foreach --all --topological run check",
+    "test": "yarn workspaces foreach --all --topological run test",
+    "build": "yarn workspaces foreach --all --topological run build",
+    "pages": "sh pages.sh",
+    "preview": "yarn workspace phone vite preview --config ../preview.config.ts"
+  }
+}

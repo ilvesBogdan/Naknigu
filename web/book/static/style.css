@@ -1,0 +1,297 @@
+/* Оформление под e-ink: только чёрное на белом, никаких анимаций, теней
+   и полутонов — они на таком экране дают «грязь». */
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: #fff;
+  color: #000;
+  font-family: Bookerly, Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+button {
+  background: #fff;
+  color: #000;
+  border: 2px solid #000;
+  border-radius: 0;
+  font: inherit;
+}
+
+/* Книга не прокручивается вовсе: листание — только экранами. */
+html, body { overflow: hidden; }
+
+/* Страница целиком. Ширину, высоту и поворот задаёт src/dom.ts в пикселях,
+   а всё внутри расположено относительно этого блока через position: absolute.
+   От размеров окна браузера вёрстка не зависит: старые браузеры книг считают
+   их для position: fixed каждый по-своему, особенно у повёрнутой страницы. */
+#screen { position: fixed; top: 0; left: 0; overflow: hidden; transform-origin: 0 0; }
+
+#pair, #page, #pager, #menu { display: none; }
+
+/* --- Статья ---
+   #flow разложен в колонки шириной и высотой с экран (размеры ставит
+   src/paginator.ts). Колонка — это один экран; браузер не разрывает строку между
+   колонками, поэтому у края экрана не бывает разрезанных строк. */
+
+body.reading #page {
+  display: block;
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  /* Листание пальцем разбираем сами: браузер не должен в ответ на него
+     прокручивать страницу. */
+  touch-action: none;
+  /* Высоту (до панели листания) ставит src/paginator.ts. */
+  overflow: hidden;
+}
+#flow {
+  /* Точные значения ставит src/paginator.ts, когда раскладывает статью. */
+  --line-height: 1.5em;
+  --page-height: 100vh;
+  box-sizing: content-box;
+  column-fill: auto;
+  /* Выключка по ширине с переносами: без пустот в конце строк. */
+  text-align: justify;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+#flow h1, #flow h2, #flow h3, #flow h4 {
+  line-height: 1.25;
+  margin: 0.8em 0 0.5em;
+  text-align: left;
+  -webkit-hyphens: manual;
+  hyphens: manual;
+  /* Заголовок не остаётся внизу экрана без своего текста. */
+  break-after: avoid;
+  break-inside: avoid;
+}
+#flow h1 { font-size: 1.5em; margin-top: 0; }
+#flow h2 { font-size: 1.3em; }
+#flow h3 { font-size: 1.15em; }
+#flow h4 { font-size: 1em; }
+
+#meta { font-size: 0.85em; text-align: left; border-bottom: 1px solid #000; padding-bottom: 0.4em; }
+
+/* Отступ между абзацами — ровно одна строка, чтобы текст не сбивался с шага. */
+#flow p { margin: 0 0 var(--line-height); }
+#flow li > p { margin-bottom: 0; }
+#flow ul, #flow ol { margin: 0 0 var(--line-height); padding-left: 1.4em; }
+#flow a { color: #000; text-decoration: underline; }
+
+/* Картинка целиком помещается на экран и не переносится по частям. */
+#flow img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(var(--page-height) - 4em);
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+}
+#flow figure { margin: 0 0 var(--line-height); break-inside: avoid; }
+#flow figcaption { font-size: 0.8em; font-style: italic; text-align: center; -webkit-hyphens: manual; hyphens: manual; }
+
+#flow blockquote { margin: 0 0 var(--line-height); padding-left: 0.9em; border-left: 4px solid #000; }
+
+#flow pre, #flow code { font-family: "Courier New", Courier, monospace; font-size: 0.8em; }
+#flow pre {
+  margin: 0 0 var(--line-height);
+  padding: 0 0 0 8px;
+  border-left: 2px solid #000;
+  /* Длинные строки кода переносим: горизонтальной прокрутки нет. */
+  white-space: pre-wrap;
+  text-align: left;
+  -webkit-hyphens: manual;
+  hyphens: manual;
+}
+#flow pre code { font-size: 1em; }
+
+/* Таблица обязана уместиться в ширину экрана: всё, что шире колонки,
+   вылезло бы на соседний экран. Поэтому столбцы делят ширину поровну,
+   а длинные слова в ячейках переносятся. */
+#flow table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.75em;
+  text-align: left;
+  -webkit-hyphens: manual;
+  hyphens: manual;
+}
+#flow td, #flow th { border: 1px solid #000; padding: 2px 3px; overflow: hidden; word-break: break-word; }
+#flow hr { border: 0; border-top: 1px solid #000; }
+
+#source { font-size: 0.85em; text-align: left; word-break: break-all; }
+
+/* --- Панель листания --- */
+
+body.reading #pager {
+  display: block;
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%;
+  height: 50px;
+  line-height: 50px;
+  border-top: 2px solid #000;
+  background: #fff;
+  text-align: center;
+  white-space: nowrap;
+  /* Панель — только кнопки: браузер не должен выделять на ней текст. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+#pager button {
+  width: 35%;
+  height: 100%;
+  /* У кнопок разный размер шрифта: без этого они встают по базовой линии
+     текста, и номер страницы на пиксель-другой вылезает за край экрана. */
+  vertical-align: top;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: bold;
+}
+/* Номер страницы — тоже кнопка: нажатие на него открывает меню. */
+#pager #pageno { width: 30%; font-size: 0.8em; font-weight: normal; }
+
+/* --- Выбор, где открыть ссылку: полоса над панелью листания --- */
+
+#linkbox { display: none; }
+/* Классы shown, chosen, h3/h4 и вкладки меню ставит src/*.ts через className:
+   IDE их не видит и считает такие селекторы лишними. */
+/*noinspection CssUnusedSymbol*/
+body.reading #linkbox.shown {
+  display: block;
+  position: absolute;
+  left: 0; bottom: 52px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 20px 14px;
+  border-top: 2px solid #000;
+  background: #fff;
+}
+#link-url { margin: 0 0 6px; font-size: 0.7em; word-break: break-all; max-height: 3em; overflow: hidden; }
+#linkbox button { display: block; width: 100%; margin-top: 8px; padding: 10px; font-weight: bold; }
+#linkbox #link-cancel { font-weight: normal; }
+
+/* --- Экран связывания с телефоном и меню: ровно во весь экран --- */
+
+body.pairing #pair, body.menu #menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 12px 20px;
+  text-align: center;
+  background: #fff;
+  overflow: hidden;
+}
+#pair h1 { font-size: 1.6em; line-height: 1.25; margin: 0 0 0.4em; }
+#pair p { margin: 0 0 0.6em; }
+#qr { margin: 0.2em 0 0.6em; }
+#qr svg { display: block; width: 100%; height: 100%; }
+#pair-url { font-family: "Courier New", Courier, monospace; font-size: 0.6em; word-break: break-all; }
+#pair .hint { font-size: 0.8em; font-style: italic; }
+#pair-reset { margin-top: 1.2em; padding: 10px 16px; font-size: 0.85em; }
+
+#tabs { display: flex; position: relative; width: 100%; margin-bottom: 6px; }
+#tabs button { flex: 1; padding: 10px; }
+#tabs button + button { border-left: 0; }
+/*noinspection CssUnusedSymbol*/
+#menu.nav #tab-nav, #menu.font #tab-font, .choice .chosen { background: #000; color: #fff; font-weight: bold; }
+#tabs #more { flex: none; width: 40px; padding: 0; }
+#more i { display: block; width: 5px; height: 5px; margin: 4px auto; border-radius: 50%; background: #000; }
+/* Выпадающее меню под тремя точками. */
+#more-menu { display: none; position: absolute; top: 100%; right: 0; z-index: 1; border: 2px solid #000; border-top: 0; background: #fff; }
+/*noinspection CssUnusedSymbol*/
+#more-menu.shown { display: block; }
+#more-menu button { display: block; flex: none; width: 100%; padding: 14px 28px; border: 0; font-weight: bold; white-space: nowrap; }
+#more-menu button + button { border-top: 1px solid #000; }
+
+/* Вкладка занимает всё место между переключателем и нижней кнопкой. */
+#pane-nav, #pane-font, #pane-settings { display: none; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
+#menu.nav #pane-nav, #menu.font #pane-font, #menu.settings #pane-settings { display: flex; }
+/* На низком экране (книга на боку) настройки могут не поместиться. */
+#pane-font, #pane-settings { overflow-y: auto; }
+
+/* Настройки: выбор одного из вариантов — кнопки в ряд, выбранная закрашена. */
+#pane-settings { text-align: left; }
+#pane-settings p { margin: 0.9em 0 0.4em; }
+#pane-settings .hint { font-size: 0.8em; font-style: italic; }
+.choice { display: flex; flex: none; }
+.choice button { flex: 1; padding: 10px 4px; }
+.choice button + button { border-left: 0; }
+
+/* Заголовков бывает больше, чем входит на экран: список прокручивается. */
+#toc { flex: 1; min-height: 0; overflow-y: auto; text-align: left; }
+#toc button { display: block; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid #000; text-align: left; }
+/*noinspection CssUnusedSymbol*/
+#toc .h3 { padding-left: 1em; }
+/*noinspection CssUnusedSymbol*/
+#toc .h4 { padding-left: 2em; }
+#toc p { font-style: italic; }
+/* Рамка у выбранной страницы появляется, когда на неё можно перейти. */
+#menu #page-target { min-width: 5em; border-color: transparent; font-weight: normal; }
+#menu #page-target.go { border-color: #000; font-weight: bold; }
+
+#menu .setting {
+  display: flex;
+  flex-wrap: wrap; /* на узком экране кнопки уходят под подпись */
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 0;
+  border-top: 1px solid #000;
+  text-align: left;
+}
+#menu .controls { white-space: nowrap; }
+#menu .controls button { min-width: 2.6em; padding: 8px; font-weight: bold; }
+#font-size { display: inline-block; min-width: 3.5em; text-align: center; }
+#font-sample {
+  width: 100%;
+  height: 5em;
+  overflow: hidden;
+  margin: 0;
+  padding: 10px 0;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+  box-sizing: content-box;
+}
+#menu-close { width: 100%; margin-top: 14px; padding: 12px; font-weight: bold; }
+
+/* --- Лог загрузки: нижняя (текущая) строка стоит по центру экрана,
+       предыдущие поднимаются над ней и уходят за верхний край --- */
+
+#loading { display: none; }
+/*noinspection CssUnusedSymbol*/
+#loading.shown {
+  display: block;
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  overflow: hidden;
+  z-index: 10;
+}
+#log {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 50%;
+  /* Опускаем на полстроки, чтобы по центру оказалась середина строки. */
+  margin-bottom: -0.75em;
+  padding: 0 20px;
+  text-align: center;
+}
+#log div { margin-top: 0.5em; }
+#log div:last-child { font-weight: bold; }

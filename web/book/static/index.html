@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Статья — чужая разметка: что бы в ней ни оказалось, исполняться могут
+     только собственные скрипты сайта. GitHub Pages не даёт задать заголовки
+     ответа, поэтому политика задана здесь. -->
+<meta http-equiv="Content-Security-Policy" content="script-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'">
+<title></title>
+<link rel="stylesheet" href="style.css?v=__BUILD__">
+</head>
+<!-- Тексты подставляет src/i18n.ts по атрибутам data-i18n из locales/*.json -->
+<!-- Экран выбирает src/main.ts: связанная книга код не показывает вовсе -->
+<body>
+
+<!-- Всё, что видно на экране, лежит в #screen. Его размер и поворот задаёт
+     src/dom.ts (fitScreen); экраны внутри расположены относительно него. -->
+<div id="screen">
+
+<!-- Экран связывания: занимает весь экран, без прокрутки -->
+<div id="pair">
+  <h1 data-i18n="pair.title"></h1>
+  <p id="pair-text"></p>
+  <div id="qr"></div>
+  <p id="pair-url"></p>
+  <p class="hint" data-i18n="pair.hint"></p>
+  <button id="pair-reset" type="button" data-i18n="pair.reset"></button>
+</div>
+
+<!-- Статья: #flow разложен в колонки, один экран — одна колонка -->
+<div id="page">
+  <div id="flow">
+    <h1 id="title"></h1>
+    <p id="meta"></p>
+    <div id="content"></div>
+    <p id="source"></p>
+  </div>
+</div>
+<div id="pager">
+  <button id="prev" type="button" data-i18n="pager.prev"></button><button id="pageno" type="button"></button><button id="next" type="button" data-i18n="pager.next"></button>
+</div>
+
+<!-- Выбор, где открыть ссылку из статьи: появляется над панелью листания -->
+<div id="linkbox">
+  <p id="link-url"></p>
+  <button id="link-article" type="button" data-i18n="link.article"></button>
+  <button id="link-phone" type="button" data-i18n="link.phone"></button>
+  <button id="link-here" type="button" data-i18n="link.here"></button>
+  <button id="link-cancel" type="button" data-i18n="link.cancel"></button>
+</div>
+
+<!-- Меню: открывается нажатием на номер страницы в нижней панели.
+     Две вкладки: переход по статье (класс nav) и шрифт (font). За тремя
+     точками справа от вкладок — настройки книги (settings) и «Выйти». -->
+<div id="menu">
+  <div id="tabs">
+    <button id="tab-nav" type="button" data-i18n="menu.tab.nav"></button>
+    <button id="tab-font" type="button" data-i18n="menu.tab.font"></button>
+    <!-- Три точки: редкие действия. Нарисованы разметкой — значка «⋮»
+         в шрифтах книги может не оказаться. -->
+    <button id="more" type="button"><i></i><i></i><i></i></button>
+    <div id="more-menu">
+      <button id="menu-settings" type="button" data-i18n="menu.settings"></button>
+      <button id="menu-exit" type="button" data-i18n="menu.exit"></button>
+    </div>
+  </div>
+
+  <div id="pane-nav">
+    <!-- Заголовки статьи: нажатие открывает страницу с заголовком -->
+    <div id="toc"></div>
+    <div class="setting">
+      <span data-i18n="menu.page"></span>
+      <span class="controls">
+        <button id="page-back10" type="button">−10</button>
+        <button id="page-back" type="button">−1</button>
+        <!-- Выбранная страница: когда она не текущая, получает рамку,
+             и нажатие на неё делает переход -->
+        <button id="page-target" type="button"></button>
+        <button id="page-fwd" type="button">+1</button>
+        <button id="page-fwd10" type="button">+10</button>
+      </span>
+    </div>
+  </div>
+
+  <div id="pane-font">
+    <div class="setting">
+      <span data-i18n="menu.font_size"></span>
+      <span class="controls">
+        <button id="font-smaller" type="button">A−</button>
+        <span id="font-size"></span>
+        <button id="font-bigger" type="button">A+</button>
+      </span>
+    </div>
+    <div class="setting">
+      <span data-i18n="menu.font_family"></span>
+      <span class="controls"><button id="font-family" type="button"></button></span>
+    </div>
+    <div class="setting">
+      <span data-i18n="menu.spacing"></span>
+      <span class="controls"><button id="font-spacing" type="button"></button></span>
+    </div>
+    <div class="setting">
+      <span data-i18n="menu.language"></span>
+      <span class="controls"><button id="language" type="button"></button></span>
+    </div>
+    <p id="font-sample" data-i18n="menu.sample"></p>
+  </div>
+
+  <!-- Настройки книги: открываются из меню под тремя точками -->
+  <div id="pane-settings">
+    <p data-i18n="settings.rotate"></p>
+    <div class="choice">
+      <button id="rot-0" type="button">0°</button>
+      <button id="rot-90" type="button">90°</button>
+      <button id="rot-180" type="button">180°</button>
+      <button id="rot-270" type="button">270°</button>
+    </div>
+    <p data-i18n="settings.swipe"></p>
+    <div class="choice">
+      <button id="swipe-vertical" type="button" data-i18n="settings.swipe.vertical"></button>
+      <button id="swipe-horizontal" type="button" data-i18n="settings.swipe.horizontal"></button>
+    </div>
+    <p class="hint" data-i18n="settings.swipe.hint"></p>
+  </div>
+
+  <button id="menu-close" type="button" data-i18n="menu.back"></button>
+</div>
+
+<!-- Лог загрузки: текущая строка по центру экрана, прежние — выше -->
+<div id="loading"><div id="log"></div></div>
+
+</div>
+
+<!-- __BUILD__ — номер сборки, его подставляет build.sh; book.js появляется
+     рядом со страницей только при сборке (dist/). -->
+<!--suppress HtmlUnknownTarget -->
+<script src="book.js?v=__BUILD__"></script>
+</body>
+</html>
